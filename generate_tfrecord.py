@@ -28,7 +28,7 @@ recordTF_out = ("train.record", "test.record")
 recordTF_in = ("train.csv", "test.csv")
 
 resizeImage = False
-resize_width = 960
+resize_width = 640
 imgResizedFolder = imgFolder + "_" + str(resize_width)
 #---------------------------------------------------------------------
 
