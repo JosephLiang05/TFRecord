@@ -27,7 +27,7 @@ testRatio = 0.2
 recordTF_out = ("train.record", "test.record")
 recordTF_in = ("train.csv", "test.csv")
 
-resizeImage = True
+resizeImage = False
 resize_width = 960
 imgResizedFolder = imgFolder + "_" + str(resize_width)
 #---------------------------------------------------------------------
@@ -85,8 +85,7 @@ def transferTF( xmlFilepath, imgFilepath, labelGrep=""):
         tmpArrays = labelXML.getElementsByTagName("FileName")
         for elem in tmpArrays:
             filenameImage = elem.firstChild.data
-#classList = { "F_PT;FPT":0, "N+_R;C71":1, "I_Pp1;13":2, 'Pass_Pb;18':3, 'M2_Tp1A-R;M19': 4, 'Via_Udev;12':5 }
-
+            
         tmpArrays = labelXML.getElementsByTagName("ADC")
         for elem in tmpArrays:
             name = str(elem.firstChild.data)
