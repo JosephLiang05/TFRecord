@@ -80,27 +80,27 @@ def transferTF( xmlFilepath, imgFilepath, labelGrep=""):
         labelYmax = []
         countLabels = 0
 
-        tmpArrays = labelXML.getElementsByTagName("filename")
+        tmpArrays = labelXML.getElementsByTagName("FileName")
         for elem in tmpArrays:
             filenameImage = elem.firstChild.data
 
-        tmpArrays = labelXML.getElementsByTagName("name")
+        tmpArrays = labelXML.getElementsByTagName("ADC")
         for elem in tmpArrays:
             labelName.append(str(elem.firstChild.data))
 
-        tmpArrays = labelXML.getElementsByTagName("xmin")
+        tmpArrays = labelXML.getElementsByTagName("X1")
         for elem in tmpArrays:
             labelXmin.append(int(int(elem.firstChild.data) * size_ratio_w))
 
-        tmpArrays = labelXML.getElementsByTagName("ymin")
+        tmpArrays = labelXML.getElementsByTagName("Y1")
         for elem in tmpArrays:
             labelYmin.append(int(int(elem.firstChild.data) * size_ratio_h))
 
-        tmpArrays = labelXML.getElementsByTagName("xmax")
+        tmpArrays = labelXML.getElementsByTagName("X2")
         for elem in tmpArrays:
             labelXmax.append(int(int(elem.firstChild.data) * size_ratio_w))
 
-        tmpArrays = labelXML.getElementsByTagName("ymax")
+        tmpArrays = labelXML.getElementsByTagName("Y2")
         for elem in tmpArrays:
             labelYmax.append(int(int(elem.firstChild.data) * size_ratio_h))
 
@@ -128,7 +128,7 @@ def create_tf_example(group, path):
     width, height = image.size
 
     filename = group.filename.encode('utf8')
-    image_format = b'jpg'
+    image_format = b'bmp'
     xmins = []
     xmaxs = []
     ymins = []
