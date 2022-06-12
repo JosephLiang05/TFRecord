@@ -17,7 +17,7 @@ import tensorflow as tf
 #--------------------------------------------------------------------
 #folderCharacter = "/"  # \\ is for windows
 #classList = { "b01a":0, "b01b":1, "b01c":2, "b02":3, "b03":4, "b04":5, "b05":6, "b06":7, "b07": 8, "b08": 9, "b09": 10, "b10": 11, "b11": 12 }
-classList = { "F_TP":1, "I_R":2, "PP":3, 'PP_Pb':4, 'TP': 5, 'Udev':6 }
+classList = { "F_TP":0, "I_R":1, "PP":2, 'PP_Pb':3, 'TP': 4, 'Udev':5 }
 xmlFolder = "/content/workspace/training/xml"
 imgFolder = "/content/workspace/training/images"
 savePath = "/content/workspace/training/annotations"
