@@ -16,8 +16,10 @@ import tensorflow as tf
 
 #--------------------------------------------------------------------
 #folderCharacter = "/"  # \\ is for windows
-#classList = { "b01a":0, "b01b":1, "b01c":2, "b02":3, "b03":4, "b04":5, "b05":6, "b06":7, "b07": 8, "b08": 9, "b09": 10, "b10": 11, "b11": 12 }
+
+#classList = { "F_PT;FPT":0, "N+_R;C71":1, "I_Pp1;13":2, 'Pass_Pb;18':3, 'M2_Tp1A-R;M19': 4, 'Via_Udev;12':5 }
 classList = { "F_TP":0, "I_R":1, "PP":2, 'PP_Pb':3, 'TP': 4, 'Udev':5 }
+
 xmlFolder = "/content/workspace/training/xml"
 imgFolder = "/content/workspace/training/images"
 savePath = "/content/workspace/training/annotations"
@@ -83,10 +85,24 @@ def transferTF( xmlFilepath, imgFilepath, labelGrep=""):
         tmpArrays = labelXML.getElementsByTagName("FileName")
         for elem in tmpArrays:
             filenameImage = elem.firstChild.data
+#classList = { "F_PT;FPT":0, "N+_R;C71":1, "I_Pp1;13":2, 'Pass_Pb;18':3, 'M2_Tp1A-R;M19': 4, 'Via_Udev;12':5 }
 
         tmpArrays = labelXML.getElementsByTagName("ADC")
         for elem in tmpArrays:
-            labelName.append(str(elem.firstChild.data))
+            name = str(elem.firstChild.data)
+            if "F_PT" in name:
+                name = "F_TP"
+            if "N+_R" in name:
+                name = "I_R"
+            if "I_Pp1" in name:
+                name = "PP"
+            if "Pass_Pb" in name):
+                name = "PP_Pb"
+            if "M2_Tp1A" in name):
+                name = "TP"
+            if "Via_Udev" in name:
+                name = "Udev"
+            labelName.append(name)
 
         tmpArrays = labelXML.getElementsByTagName("X1")
         for elem in tmpArrays:
