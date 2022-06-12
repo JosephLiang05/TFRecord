@@ -96,9 +96,9 @@ def transferTF( xmlFilepath, imgFilepath, labelGrep=""):
                 name = "I_R"
             if "I_Pp1" in name:
                 name = "PP"
-            if "Pass_Pb" in name):
+            if "Pass_Pb" in name:
                 name = "PP_Pb"
-            if "M2_Tp1A" in name):
+            if "M2_Tp1A" in name:
                 name = "TP"
             if "Via_Udev" in name:
                 name = "Udev"
