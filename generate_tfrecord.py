@@ -1,106 +1,116 @@
-""" Sample TensorFlow XML-to-TFRecord converter
-
-usage: generate_tfrecord.py [-h] [-x XML_DIR] [-l LABELS_PATH] [-o OUTPUT_PATH] [-i IMAGE_DIR] [-c CSV_PATH]
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -x XML_DIR, --xml_dir XML_DIR
-                        Path to the folder where the input .xml files are stored.
-  -l LABELS_PATH, --labels_path LABELS_PATH
-                        Path to the labels (.pbtxt) file.
-  -o OUTPUT_PATH, --output_path OUTPUT_PATH
-                        Path of output TFRecord (.record) file.
-  -i IMAGE_DIR, --image_dir IMAGE_DIR
-                        Path to the folder where the input image files are stored. Defaults to the same directory as XML_DIR.
-  -c CSV_PATH, --csv_path CSV_PATH
-                        Path of output .csv file. If none provided, then no file will be written.
-"""
-
-import os
-import glob
-import pandas as pd
-import io
-import xml.etree.ElementTree as ET
-import argparse
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'    # Suppress TensorFlow logging (1)
-import tensorflow.compat.v1 as tf
+import glob, os, io
+import random
+import os.path
+import time
+from shutil import copyfile
+import cv2
+import imutils
+from xml.dom import minidom
+from os.path import basename
 from PIL import Image
-from object_detection.utils import dataset_util, label_map_util
-from collections import namedtuple
+from object_detection.utils import dataset_util
+from collections import namedtuple, OrderedDict
+import pandas as pd
+import tensorflow as tf
+#from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 
-# Initiate argument parser
-parser = argparse.ArgumentParser(
-    description="Sample TensorFlow XML-to-TFRecord converter")
-parser.add_argument("-x",
-                    "--xml_dir",
-                    help="Path to the folder where the input .xml files are stored.",
-                    type=str)
-parser.add_argument("-l",
-                    "--labels_path",
-                    help="Path to the labels (.pbtxt) file.", type=str)
-parser.add_argument("-o",
-                    "--output_path",
-                    help="Path of output TFRecord (.record) file.", type=str)
-parser.add_argument("-i",
-                    "--image_dir",
-                    help="Path to the folder where the input image files are stored. "
-                         "Defaults to the same directory as XML_DIR.",
-                    type=str, default=None)
-parser.add_argument("-c",
-                    "--csv_path",
-                    help="Path of output .csv file. If none provided, then no file will be "
-                         "written.",
-                    type=str, default=None)
+#--------------------------------------------------------------------
+#folderCharacter = "/"  # \\ is for windows
+#classList = { "b01a":0, "b01b":1, "b01c":2, "b02":3, "b03":4, "b04":5, "b05":6, "b06":7, "b07": 8, "b08": 9, "b09": 10, "b10": 11, "b11": 12 }
+classList = { "F_TP":1, "I_R":2, "PP":3, 'PP_Pb':4, 'TP': 5, 'Udev':6 }
+xmlFolder = "/content/workspace/training/images"
+imgFolder = "/content/workspace/training/images"
+savePath = "/content/workspace/training/annotations"
+testRatio = 0.2
+recordTF_out = ("train.record", "test.record")
+recordTF_in = ("train.csv", "test.csv")
 
-args = parser.parse_args()
+resizeImage = True
+resize_width = 960
+imgResizedFolder = imgFolder + "_" + str(resize_width)
+#---------------------------------------------------------------------
 
-if args.image_dir is None:
-    args.image_dir = args.xml_dir
+fileList = []
+outputTrainFile = os.path.join(savePath, recordTF_in[0])
+outputTestFile = os.path.join(savePath, recordTF_in[1])
 
-label_map = label_map_util.load_labelmap(args.labels_path)
-label_map_dict = label_map_util.get_label_map_dict(label_map)
+if not os.path.exists(savePath):
+    os.makedirs(savePath)
+
+if not os.path.exists(imgResizedFolder):
+    os.makedirs(imgResizedFolder)
+
+def transferTF( xmlFilepath, imgFilepath, labelGrep=""):
+    #print("TEST:", xmlFilepath, imgFilepath)
+    if(os.path.exists(xmlFilepath) and os.path.exists(imgFilepath)):
+
+        img_file, img_file_extension = os.path.splitext(imgFilepath)
+        img_filename = basename(img_file)
+
+        img = cv2.imread(imgFilepath)
+        org_width = img.shape[1]
+        org_height = img.shape[0]
+
+        if(resizeImage==True):
+            if(img.shape[1]>=img.shape[0]):
+                img = imutils.resize(img, width = resize_width)
+                size_ratio_w = img.shape[1] / org_width
+                size_ratio_h = img.shape[0] / org_height
+            else:
+                img = imutils.resize(img, height = resize_width)
+                size_ratio_w = img.shape[1] / org_width
+                size_ratio_h = img.shape[0] / org_height
+
+            cv2.imwrite( os.path.join(imgResizedFolder, img_filename + img_file_extension), img)
+        else:
+            cv2.imwrite(os.path.join(imgResizedFolder, img_filename + img_file_extension), img)
+            size_ratio_w = 1
+            size_ratio_h = 1
+
+        imgShape = img.shape
+        img_h = imgShape[0]
+        img_w = imgShape[1]
 
 
-def xml_to_csv(path):
-    """Iterates through all .xml files (generated by labelImg) in a given directory and combines
-    them in a single Pandas dataframe.
+        labelXML = minidom.parse(xmlFilepath)
+        labelName = []
+        labelXmin = []
+        labelYmin = []
+        labelXmax = []
+        labelYmax = []
+        countLabels = 0
 
-    Parameters:
-    ----------
-    path : str
-        The path containing the .xml files
-    Returns
-    -------
-    Pandas DataFrame
-        The produced dataframe
-    """
+        tmpArrays = labelXML.getElementsByTagName("filename")
+        for elem in tmpArrays:
+            filenameImage = elem.firstChild.data
 
-    xml_list = []
-    for xml_file in glob.glob(path + '/*.xml'):
-        tree = ET.parse(xml_file)
-        root = tree.getroot()
-        for member in root.findall('object'):
-            value = (root.find('filename').text,
-                     int(root.find('size')[0].text),
-                     int(root.find('size')[1].text),
-                     member[0].text,
-                     int(member[4][0].text),
-                     int(member[4][1].text),
-                     int(member[4][2].text),
-                     int(member[4][3].text)
-                     )
-            xml_list.append(value)
-    column_name = ['filename', 'width', 'height',
-                   'class', 'xmin', 'xmax', 'ymin', 'ymax']
-    xml_df = pd.DataFrame(xml_list, columns=column_name)
-    xml_df.to_csv("dataset.csv")
-    return xml_df
+        tmpArrays = labelXML.getElementsByTagName("name")
+        for elem in tmpArrays:
+            labelName.append(str(elem.firstChild.data))
 
+        tmpArrays = labelXML.getElementsByTagName("xmin")
+        for elem in tmpArrays:
+            labelXmin.append(int(int(elem.firstChild.data) * size_ratio_w))
+
+        tmpArrays = labelXML.getElementsByTagName("ymin")
+        for elem in tmpArrays:
+            labelYmin.append(int(int(elem.firstChild.data) * size_ratio_h))
+
+        tmpArrays = labelXML.getElementsByTagName("xmax")
+        for elem in tmpArrays:
+            labelXmax.append(int(int(elem.firstChild.data) * size_ratio_w))
+
+        tmpArrays = labelXML.getElementsByTagName("ymax")
+        for elem in tmpArrays:
+            labelYmax.append(int(int(elem.firstChild.data) * size_ratio_h))
+
+        return (img_filename+img_file_extension , img_w, img_h, labelName, labelXmin, labelYmin, labelXmax, labelYmax)
+
+    else:
+        return (None, None, None, None, None, None, None, None)
 
 def class_text_to_int(row_label):
-    return label_map_dict[row_label]
-
+    return classList[row_label]
 
 def split(df, group):
     data = namedtuple('data', ['filename', 'object'])
@@ -109,8 +119,10 @@ def split(df, group):
 
 
 def create_tf_example(group, path):
-    with tf.gfile.GFile(os.path.join(path, '{}'.format(group.filename)), 'rb') as fid:
+    print("TEST:", path, group.filename)
+    with tf.io.gfile.GFile(os.path.join(path, '{}'.format(group.filename)), 'rb') as fid:
         encoded_jpg = fid.read()
+
     encoded_jpg_io = io.BytesIO(encoded_jpg)
     image = Image.open(encoded_jpg_io)
     width, height = image.size
@@ -125,10 +137,10 @@ def create_tf_example(group, path):
     classes = []
 
     for index, row in group.object.iterrows():
-        xmins.append(row['xmin'] / width)
-        xmaxs.append(row['xmax'] / width)
-        ymins.append(row['ymin'] / height)
-        ymaxs.append(row['ymax'] / height)
+        xmins.append(int(row['xmin']) / int(width))
+        xmaxs.append(int(row['xmax']) / int(width))
+        ymins.append(int(row['ymin']) / int(height))
+        ymaxs.append(int(row['ymax']) / int(height))
         classes_text.append(row['class'].encode('utf8'))
         classes.append(class_text_to_int(row['class']))
 
@@ -148,19 +160,123 @@ def create_tf_example(group, path):
     }))
     return tf_example
 
+#-------------------------------------------------
+#step 1: make train.csv / test.csv
 
-def main(_):
+for file in os.listdir(imgFolder):
+    filename, file_extension = os.path.splitext(file)
+    file_extension = file_extension.lower()
 
-    writer = tf.python_io.TFRecordWriter(args.output_path)
-    path = os.path.join(args.image_dir)
-    examples = xml_to_csv(args.xml_dir)
+    if(file_extension == ".jpg" or file_extension==".jpeg" or file_extension==".png" or file_extension==".bmp"):
+        imgFile = basename(filename) + file_extension
+        xmlFile = basename(filename) + ".xml"
+        print("XML:"+xmlFile, "IMG:"+imgFile)
+
+        if(os.path.exists(os.path.join(xmlFolder, xmlFile))):
+            fileList.append(imgFile)
+
+print("total image files: ", len(fileList))
+
+testCount = int(len(fileList) * testRatio)
+trainCount = len(fileList) - testCount
+
+a = range(len(fileList))
+test_data = random.sample(a, testCount)
+#train_data = random.sample(a, trainCount)
+train_data = [x for x in a if x not in test_data]
+print ("Train:{} images".format(len(train_data)))
+print("Test:{} images".format(len(test_data)))
+
+
+csvFilename = os.path.join(savePath, recordTF_in[0])
+print("writeing to {}".format(csvFilename))
+
+with open(csvFilename, 'a') as the_file:
+    i = 0
+    the_file.write("filename,width,height,class,xmin,ymin,xmax,ymax" + '\n')
+
+    for id in train_data:
+        base_filename = os.path.splitext(fileList[id])[0]
+        xmlpath = os.path.join(xmlFolder, base_filename + ".xml")
+        imgpath = os.path.join(imgFolder, fileList[id])
+
+        (imgfile , w, h, labels, Xmin, Ymin, Xmax, Ymax) = transferTF( xmlpath, imgpath, "")
+        print(imgfile , w, h, labels, Xmin, Ymin, Xmax, Ymax)
+        if(imgfile is not None):
+            for id2, label in enumerate(labels):
+                the_file.write(imgfile + ',' + str(w) + ',' + str(h) + ',' + labels[id2] + ',' + str(Xmin[id2]) + ',' + str(Ymin[id2]) \
+                    + ',' + str(Xmax[id2]) + ',' + str(Ymax[id2]) + '\n')
+
+            i += 1
+
+the_file.close()
+print("Total {} train records to {}".format(i, recordTF_in[0]))
+
+
+csvFilename = os.path.join(savePath, recordTF_in[1])
+print("writeing to {}".format(csvFilename))
+
+with open(csvFilename, 'a') as the_file:
+    i = 0
+    the_file.write("filename,width,height,class,xmin,ymin,xmax,ymax" + '\n')
+
+    for id in test_data:
+        base_filename = os.path.splitext(fileList[id])[0]
+        xmlpath = os.path.join(xmlFolder, base_filename + ".xml")
+        imgpath = os.path.join(imgFolder, fileList[id])
+
+        (imgfile , w, h, labels, Xmin, Ymin, Xmax, Ymax) = transferTF( xmlpath, imgpath, "")
+        if(imgfile is not None):
+            print("TEST_labels:", labels)
+            print("TEST_Xmin:", Xmin)
+            print("TEST_Xmax:", Xmax)
+            print("TEST_Ymin:", Ymin)
+            print("TEST_Ymax:", Ymax)
+
+            for id2, label in enumerate(labels):
+                the_file.write(imgfile + ',' + str(w) + ',' + str(h) + ',' + labels[id2] + ',' + str(Xmin[id2]) + ',' + str(Ymin[id2]) \
+                    + ',' + str(Xmax[id2]) + ',' + str(Ymax[id2]) + '\n')
+
+            i += 1
+
+the_file.close()
+print("Total {} test records to {}".format(i, recordTF_in[1]))
+
+#----------------------------------------------------------
+#step 2: make TFRecords: train.record / test.record
+
+print("----------- Transfer to TF Record ---------------")
+
+for i in (0, 1):
+    output_path = os.path.join(savePath, recordTF_out[i])
+    writer = tf.io.TFRecordWriter(output_path)
+    examples = pd.read_csv(os.path.join(savePath, recordTF_in[i]))
     grouped = split(examples, 'filename')
-    for group in grouped:
-        tf_example = create_tf_example(group, path)
-        writer.write(tf_example.SerializeToString())
-    writer.close()
-    print('Successfully created the TFRecord file: {}'.format(args.output_path))
-    if args.csv_path is not None:
-        examples.to_csv(args.csv_path, index=None)
-        print('Successfully created the CSV file: {}'.format(args.csv_path))
 
+    for group in grouped:
+        tf_example = create_tf_example(group, imgResizedFolder)
+        writer.write(tf_example.SerializeToString())
+
+    writer.close()
+    print('Successfully created the TFRecords: {}'.format(output_path))
+
+#-----------------------------------------
+
+print("-----------make object_detection.pbtxt -----------")
+
+filename = os.path.join(savePath, 'object_detection.pbtxt')
+print("writeing to {}".format(filename))
+
+inv_classList = {v: k for k, v in classList.items()}
+print(inv_classList)
+
+with open(filename, 'a') as the_file:
+
+    for i in range(1, len(classList)+1):
+        print("i=", i)
+        the_file.write("item {" + '\n')
+        the_file.write("  id: " + str(i) + '\n')
+        the_file.write("  name: '" + inv_classList[i-1] + "'" + '\n')
+        the_file.write("}" + '\n\n')
+
+the_file.close()
