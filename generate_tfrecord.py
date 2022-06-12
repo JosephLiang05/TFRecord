@@ -90,15 +90,15 @@ def transferTF( xmlFilepath, imgFilepath, labelGrep=""):
         tmpArrays = labelXML.getElementsByTagName("ADC")
         for elem in tmpArrays:
             name = str(elem.firstChild.data)
-            if "F_PT" in name:
+            if "_PT" in name:
                 name = "F_TP"
-            if "N+_R" in name:
+            if "_R" in name:
                 name = "I_R"
-            if "I_Pp1" in name:
+            if "_Pp" in name:
                 name = "PP"
-            if "Pass_Pb" in name:
+            if "_Pb" in name:
                 name = "PP_Pb"
-            if "M2_Tp1A" in name:
+            if "Tp" in name:
                 name = "TP"
             if "Udev" in name:
                 name = "Udev"
